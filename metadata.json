@@ -1,0 +1,8 @@
+{
+  "name": "Z-Funnels: WhatsApp Sales Accelerator",
+  "description": "A professional-grade WhatsApp funnel and messaging management tool designed for sales agility, featuring visual funnel builders, quick-send messages, and dynamic variables.",
+  "requestFramePermissions": [
+    "camera",
+    "microphone"
+  ]
+}
