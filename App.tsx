@@ -6,6 +6,7 @@ import { LeadControl } from './components/LeadControl';
 import { MessagePreview } from './components/MessagePreview';
 import { Button } from './components/Button';
 import { MessageModal } from './components/MessageModal';
+import { WhatsAppConnect } from './components/WhatsAppConnect';
 import { sendToWhatsApp } from './services/whatsappService';
 
 const App: React.FC = () => {
@@ -14,6 +15,8 @@ const App: React.FC = () => {
   const [activeStageId, setActiveStageId] = useState<string | null>(null);
   const [isSending, setIsSending] = useState<string | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isConnectOpen, setIsConnectOpen] = useState(false);
+  const [isConnected, setIsConnected] = useState(false);
   const [targetStageId, setTargetStageId] = useState<string | null>(null);
   const [predefinedType, setPredefinedType] = useState<MessageType | undefined>(undefined);
   
@@ -40,6 +43,10 @@ const App: React.FC = () => {
       setFunnels(INITIAL_DATA);
       setActiveFunnelId(INITIAL_DATA[0].id);
     }
+
+    // Load connection status
+    const conn = localStorage.getItem('whatsapp_connected') === 'true';
+    setIsConnected(conn);
   }, []);
 
   const saveFunnels = (updatedFunnels: Funnel[]) => {
@@ -47,9 +54,26 @@ const App: React.FC = () => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(updatedFunnels));
   };
 
+  const handleConnected = () => {
+    setIsConnected(true);
+    localStorage.setItem('whatsapp_connected', 'true');
+  };
+
+  const handleDisconnect = () => {
+    if (window.confirm('Deseja desconectar sua conta do WhatsApp?')) {
+      setIsConnected(false);
+      localStorage.setItem('whatsapp_connected', 'false');
+    }
+  };
+
   const activeFunnel = funnels.find(f => f.id === activeFunnelId);
   
   const handleSendMessage = async (msg: Message) => {
+    if (!isConnected) {
+      setIsConnectOpen(true);
+      return;
+    }
+
     setIsSending(msg.id);
     try {
       await sendToWhatsApp(msg, leadContext);
@@ -65,7 +89,6 @@ const App: React.FC = () => {
       alert('Selecione um funil primeiro para adicionar a mensagem.');
       return;
     }
-    // Adiciona por padrão na primeira etapa se nenhuma estiver selecionada
     const stageId = activeStageId || activeFunnel.stages[0]?.id;
     if (!stageId) return;
     
@@ -111,7 +134,21 @@ const App: React.FC = () => {
             <span className="w-9 h-9 bg-emerald-500 rounded-lg flex items-center justify-center text-slate-900 shadow-lg shadow-emerald-500/20">Z</span>
             Z-Funnels
           </div>
-          <p className="text-[10px] text-slate-500 uppercase tracking-widest font-semibold">Sales Agility OS</p>
+          
+          <div className="mt-4 flex items-center justify-between p-2 bg-slate-800/50 rounded-xl border border-slate-700/50">
+            <div className="flex items-center gap-2">
+              <span className={`w-2 h-2 rounded-full ${isConnected ? 'bg-emerald-500 animate-pulse' : 'bg-red-500'}`}></span>
+              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                {isConnected ? 'Conectado' : 'Desconectado'}
+              </span>
+            </div>
+            <button 
+              onClick={isConnected ? handleDisconnect : () => setIsConnectOpen(true)}
+              className="text-[9px] font-black uppercase text-indigo-400 hover:text-indigo-300 px-2 py-1 rounded-md bg-indigo-500/10"
+            >
+              {isConnected ? 'Sair' : 'Conectar'}
+            </button>
+          </div>
         </div>
 
         <div className="px-4 pb-4">
@@ -222,13 +259,13 @@ const App: React.FC = () => {
                   : activeFunnel.stages).map(stage => (
                   <section key={stage.id} className="animate-fade-in">
                     <div className="flex items-center gap-4 mb-6">
-                      <h2 className="text-xs font-black text-slate-400 uppercase tracking-[0.2em]">
+                      <h2 className="text-sm font-black text-slate-300 uppercase tracking-[0.2em]">
                         {stage.name}
                       </h2>
-                      <div className="h-px flex-1 bg-slate-200"></div>
+                      <div className="h-px flex-1 bg-slate-100"></div>
                       <button 
                         onClick={() => { setTargetStageId(stage.id); setIsModalOpen(true); }}
-                        className="text-[10px] font-bold text-indigo-600 hover:text-indigo-800 uppercase"
+                        className="text-[10px] font-bold text-indigo-500 hover:text-indigo-700 uppercase p-2"
                       >
                         + Adicionar
                       </button>
@@ -254,7 +291,7 @@ const App: React.FC = () => {
                                   </svg>
                                   Enviando
                                 </span>
-                              ) : 'Disparar'}
+                              ) : isConnected ? 'Disparar Agora' : 'Conectar p/ Enviar'}
                             </Button>
                           </div>
                         </div>
@@ -267,7 +304,7 @@ const App: React.FC = () => {
           </>
         ) : (
           <div className="flex-1 flex flex-col items-center justify-center p-12 text-center">
-            <div className="w-24 h-24 bg-slate-100 rounded-full flex items-center justify-center text-4xl mb-6 grayscale opacity-50">📁</div>
+            <div className="w-24 h-24 bg-slate-50 rounded-full flex items-center justify-center text-4xl mb-6 grayscale opacity-50">📁</div>
             <h2 className="text-xl font-bold text-slate-700">Selecione um Funil de Vendas</h2>
             <p className="mt-2 max-w-sm text-slate-400 text-sm">Gerencie suas mensagens prontas e acelere o atendimento escolhendo uma estratégia na lateral.</p>
           </div>
@@ -280,6 +317,13 @@ const App: React.FC = () => {
         onClose={() => { setIsModalOpen(false); setPredefinedType(undefined); }} 
         onSave={handleSaveMessage}
         initialType={predefinedType}
+      />
+
+      {/* Modal for WhatsApp Connection */}
+      <WhatsAppConnect 
+        isOpen={isConnectOpen}
+        onClose={() => setIsConnectOpen(false)}
+        onConnected={handleConnected}
       />
     </div>
   );
