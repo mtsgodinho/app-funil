@@ -10,7 +10,8 @@ import { WhatsAppConnect } from './components/WhatsAppConnect';
 import { SettingsPanel } from './components/SettingsPanel';
 import { processVariables, sendToWhatsApp, simulateLeadResponse } from './services/whatsappService';
 
-const MASCOT_URL = "https://framerusercontent.com/images/kC7Gj7f6x0fR1B8K9eK7x9x7o.png";
+// URL DO MASCOTE REAL DA TECHVIEW
+const MASCOT_URL = "https://i.imgur.com/iaWw1mr.jpeg";
 
 const App: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'funnels' | 'settings'>('funnels');
@@ -26,7 +27,7 @@ const App: React.FC = () => {
   const [isClientTyping, setIsClientTyping] = useState(false);
   
   const [chatMessages, setChatMessages] = useState<Array<{id: string, text: string, type: MessageType, sender: 'me' | 'client', timestamp: string, media?: string}>>([
-    { id: '1', text: 'Olá! Gostaria de saber como assinar o Premium+.', type: MessageType.TEXT, sender: 'client', timestamp: '10:30' }
+    { id: '1', text: 'Olá! Como faço para assinar a Techview?', type: MessageType.TEXT, sender: 'client', timestamp: '10:30' }
   ]);
 
   const [leadContext, setLeadContext] = useState<LeadContext>({
@@ -144,28 +145,36 @@ const App: React.FC = () => {
   return (
     <div className="flex h-screen bg-[#020617] overflow-hidden font-sans text-slate-100">
       
-      {/* 1. Sidebar - Techview Style */}
+      {/* 1. Sidebar - Focada no Astronauta Techview */}
       <aside className="w-80 bg-[#0f172a] border-r border-white/5 flex flex-col shrink-0">
         <div className="p-6">
           <div className="flex flex-col items-center mb-6">
             <div className="relative group cursor-pointer">
-              <div className="absolute -inset-1 bg-[#00b4ff] rounded-full blur opacity-25 group-hover:opacity-60 transition duration-700"></div>
-              <img 
-                src={MASCOT_URL} 
-                alt="Mascote Techview" 
-                className="relative w-28 h-28 object-contain mb-2 drop-shadow-[0_0_15px_rgba(0,180,255,0.4)]"
-                onError={(e) => { e.currentTarget.src = "https://cdn-icons-png.flaticon.com/512/3652/3652267.png" }}
-              />
+              {/* Círculo de Brilho Neon Azul */}
+              <div className="absolute -inset-2 bg-[#00b4ff] rounded-full blur-md opacity-20 group-hover:opacity-60 transition duration-700"></div>
+              <div className="relative w-36 h-36 rounded-full border-4 border-[#00b4ff]/40 overflow-hidden bg-black flex items-center justify-center shadow-[0_0_30px_rgba(0,180,255,0.3)]">
+                <img 
+                  src={MASCOT_URL} 
+                  alt="Mascote Techview Oficial" 
+                  className="w-full h-full object-cover scale-105"
+                  onError={(e) => { 
+                    e.currentTarget.style.display = 'none';
+                    e.currentTarget.parentElement!.innerHTML = '<span class="text-4xl">👨‍🚀</span>';
+                  }}
+                />
+              </div>
             </div>
-            <h1 className="text-2xl font-black tracking-tighter text-white mt-2">TECH<span className="text-[#00b4ff]">LEADS</span></h1>
-            <span className="text-[10px] font-bold text-slate-500 uppercase tracking-[0.3em] mt-1">Powered by Techview</span>
+            <div className="text-center mt-4">
+              <h1 className="text-2xl font-black tracking-tighter text-white">TECH<span className="text-[#00b4ff]">LEADS</span></h1>
+              <p className="text-[10px] font-bold text-[#00b4ff] uppercase tracking-[0.4em] opacity-80">BY TECHVIEW</p>
+            </div>
           </div>
           
           <div className={`mt-2 flex items-center justify-between p-3 rounded-2xl border transition-all ${isConnected ? 'bg-[#00b4ff]/10 border-[#00b4ff]/30 shadow-[0_0_15px_rgba(0,180,255,0.05)]' : 'bg-red-500/10 border-red-500/20'}`}>
             <div className="flex items-center gap-2">
               <span className={`w-2 h-2 rounded-full ${isConnected ? 'bg-[#00b4ff] shadow-[0_0_8px_#00b4ff]' : 'bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.5)]'}`}></span>
               <span className={`text-[10px] font-black uppercase tracking-widest ${isConnected ? 'text-[#00b4ff]' : 'text-red-400'}`}>
-                {isConnected ? 'SISTEMA ONLINE' : 'OFFLINE'}
+                {isConnected ? 'SISTEMA ONLINE' : 'DESCONECTADO'}
               </span>
             </div>
             <button 
@@ -188,7 +197,7 @@ const App: React.FC = () => {
             onClick={() => setActiveTab('settings')}
             className={`flex-1 py-2.5 text-[10px] font-black uppercase tracking-widest rounded-xl transition-all ${activeTab === 'settings' ? 'bg-[#00b4ff] text-white shadow-lg shadow-blue-500/20' : 'text-slate-500 hover:bg-slate-800'}`}
           >
-            CONFIGURAÇÃO
+            PAINEL
           </button>
         </nav>
 
@@ -197,7 +206,7 @@ const App: React.FC = () => {
             <section className="bg-white/5 p-4 rounded-3xl border border-white/5 shadow-inner">
               <h3 className="px-1 text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] mb-4 flex items-center gap-2">
                 <span className="w-1 h-3 bg-[#00b4ff] rounded-full"></span>
-                Criar Mensagem
+                Disparo Manual
               </h3>
               <div className="grid grid-cols-2 gap-2">
                 {[
@@ -245,8 +254,14 @@ const App: React.FC = () => {
         )}
 
         <div className="p-4 mt-auto border-t border-white/5 text-center flex items-center justify-center gap-2">
-          <img src={MASCOT_URL} className="w-4 h-4 grayscale opacity-30" alt="footer-mascot" />
-          <p className="text-[9px] font-bold text-slate-600 uppercase tracking-[0.2em]">© 2024 Techview Premium+</p>
+          <div className="w-5 h-5 rounded-full overflow-hidden border border-[#00b4ff]/30">
+            <img 
+              src={MASCOT_URL} 
+              className="w-full h-full object-cover" 
+              alt="footer-mascot"
+            />
+          </div>
+          <p className="text-[9px] font-bold text-slate-600 uppercase tracking-[0.2em]">TECHVIEW PREMIUM+</p>
         </div>
       </aside>
 
@@ -288,7 +303,7 @@ const App: React.FC = () => {
                               disabled={isSending !== null}
                               onClick={() => handleSendMessage(msg)}
                             >
-                              {isSending === msg.id ? 'ENVIANDO...' : 'ENVIAR PARA O LEAD'}
+                              {isSending === msg.id ? 'TRANSOMITINDO...' : 'ENVIAR VIA TECHVIEW'}
                             </Button>
                           </div>
                         </div>
@@ -303,33 +318,43 @@ const App: React.FC = () => {
            <div className="flex-1 flex flex-col items-center justify-center p-12 text-center animate-fade-in">
              <div className="relative mb-10">
                 <div className="absolute -inset-10 bg-[#00b4ff] rounded-full blur-[60px] opacity-10"></div>
-                <img src={MASCOT_URL} className="w-48 h-48 object-contain relative drop-shadow-2xl grayscale opacity-40 hover:grayscale-0 hover:opacity-100 transition-all duration-700" alt="empty-mascot" />
+                <div className="relative w-64 h-64 rounded-full border-4 border-[#00b4ff]/30 p-2 shadow-[0_0_50px_rgba(0,180,255,0.2)] bg-black overflow-hidden">
+                  <img 
+                    src={MASCOT_URL} 
+                    className="w-full h-full object-cover rounded-full drop-shadow-2xl grayscale opacity-40 hover:grayscale-0 hover:opacity-100 transition-all duration-700 hover:scale-110" 
+                    alt="empty-mascot"
+                  />
+                </div>
              </div>
-             <h2 className="text-3xl font-black text-slate-800 tracking-tighter uppercase mb-4">Aguardando Missão</h2>
-             <p className="text-slate-500 max-w-sm text-sm font-medium leading-relaxed">O astronauta da Techview está pronto. Selecione um funil na lateral para iniciar os disparos.</p>
+             <h2 className="text-3xl font-black text-slate-800 tracking-tighter uppercase mb-4">Astronauta em Espera</h2>
+             <p className="text-slate-500 max-w-sm text-sm font-medium leading-relaxed">Sua branding está pronta. Selecione um funil para decolar nas conversões.</p>
            </div>
         ) : (
           <div className="flex-1 flex flex-col items-center justify-center p-12 text-center animate-fade-in">
-             <div className="w-32 h-32 bg-[#00b4ff]/5 rounded-[3rem] mb-10 flex items-center justify-center border border-[#00b4ff]/20 group hover:rotate-6 transition-all">
-                <img src={MASCOT_URL} className="w-20 h-20 object-contain drop-shadow-xl" alt="config-mascot" />
+             <div className="relative w-48 h-48 rounded-full border-2 border-[#00b4ff]/20 mb-10 p-2 flex items-center justify-center group hover:rotate-6 transition-all bg-black shadow-2xl overflow-hidden">
+                <img 
+                  src={MASCOT_URL} 
+                  className="w-full h-full object-cover rounded-full shadow-[0_0_15px_#00b4ff]" 
+                  alt="config-mascot"
+                />
              </div>
-             <h2 className="text-3xl font-black text-white tracking-tighter uppercase mb-4">Painel de Controle</h2>
+             <h2 className="text-3xl font-black text-white tracking-tighter uppercase mb-4">Central de Comando</h2>
              <p className="text-slate-400 max-w-sm text-sm font-medium leading-relaxed">Ajuste as frequências de transmissão e as credenciais do motor TechLeads aqui.</p>
           </div>
         )}
       </main>
 
-      {/* 3. Live Simulator - WhatsApp Dark Mode */}
+      {/* 3. Live Simulator */}
       <aside className="w-[440px] bg-[#0b141a] border-l border-white/5 flex flex-col shrink-0 relative">
         <div className="p-4 bg-[#202c33] flex items-center gap-3 border-b border-white/5">
-          <div className="w-10 h-10 rounded-full bg-[#00b4ff]/20 border border-[#00b4ff]/30 flex items-center justify-center text-[#00b4ff] text-xl uppercase font-black">
-            {leadContext.name.charAt(0)}
+          <div className="w-10 h-10 rounded-full bg-black border border-[#00b4ff]/30 flex items-center justify-center overflow-hidden">
+             <img src={MASCOT_URL} className="w-full h-full object-cover" alt="mini-mascot" />
           </div>
           <div className="flex-1">
             <h4 className="text-[#e9edef] text-sm font-bold tracking-tight">{leadContext.name}</h4>
             <div className="flex items-center gap-1.5">
                <span className={`w-2 h-2 rounded-full ${isClientTyping ? 'bg-[#00b4ff] animate-pulse shadow-[0_0_8px_#00b4ff]' : 'bg-emerald-500'}`}></span>
-               <p className="text-[#aebac1] text-[10px] uppercase font-bold tracking-widest">{isClientTyping ? 'digitando...' : 'online'}</p>
+               <p className="text-[#aebac1] text-[10px] uppercase font-bold tracking-widest">{isClientTyping ? 'conectando...' : 'terminal ativo'}</p>
             </div>
           </div>
         </div>
@@ -369,8 +394,8 @@ const App: React.FC = () => {
         </div>
 
         <div className="p-4 bg-[#202c33] flex items-center gap-3">
-          <div className="flex-1 bg-[#2a3942] rounded-[1.5rem] px-5 py-3 text-sm text-slate-500 font-medium">
-            TechLeads pronto para transmitir...
+          <div className="flex-1 bg-[#2a3942] rounded-[1.5rem] px-5 py-3 text-sm text-slate-500 font-medium italic">
+            Monitorando frequência de vendas...
           </div>
         </div>
       </aside>
