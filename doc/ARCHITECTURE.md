@@ -1,32 +1,31 @@
 
-# Arquitetura Z-Funnels
+# Estratégia de Deploy Z-Funnels
 
-Como Arquiteto Sênior, projetei esta solução focada em **escalabilidade, performance e conformidade (anti-bloqueio)**.
+Para transformar este projeto em um SaaS comercial, utilizaremos uma arquitetura de **Nuvem Híbrida**.
 
-## 1. Stack Tecnológica
-- **Core:** React 18+ com TypeScript (Tipagem forte para evitar erros em produção).
-- **Style:** Tailwind CSS (UI rápida e consistente).
-- **State:** Hooks nativos (useState, useEffect) - para o MVP. Em escala, usaríamos Zustand ou Redux.
-- **Persistence:** LocalStorage (Simulando uma extensão onde dados são locais ao navegador).
-- **Integração:** Mock de SDK WhatsApp preparado para injeção via Content Script em extensão de navegador.
+## 1. Frontend (Interface do Usuário)
+- **Hospedagem:** Vercel.
+- **Motivo:** Deploy contínuo, CDN global (carregamento instantâneo) e custo zero inicial.
+- **Função:** Gerenciar funis, editar mensagens e disparar comandos.
 
-## 2. Modelo de Dados
-- **Funnel:** Agregador principal (Nome, Descrição, ID).
-- **Stage:** Organiza a jornada (Ex: Frio -> Morno -> Quente).
-- **Message:** Unidade básica com suporte polimórfico (Texto, Áudio, Imagem, Vídeo).
+## 2. Motor de Conexão (WhatsApp Engine)
+- **Hospedagem:** Railway ou VPS Dedicada.
+- **Tecnologia:** Evolution API (Node.js/Baileys).
+- **Motivo:** O WhatsApp exige um processo **Stateful** (que mantém estado) para segurar a conexão WebSocket. A Vercel (Serverless) derrubaria a conexão a cada 30 segundos.
+- **Segurança:** O motor roda isolado, protegendo as sessões dos usuários.
 
-## 3. Fluxo de Trabalho do Usuário
-1. **Configuração:** O usuário define as variáveis do lead (Nome, Produto) no painel superior.
-2. **Navegação:** Seleciona a etapa do funil correspondente ao momento do chat.
-3. **Disparo:** Com 1 clique, a mensagem é processada (substituição de variáveis) e enviada para o buffer do WhatsApp.
+## 3. Banco de Dados e Persistência
+- **Opção A (Pro):** Supabase (PostgreSQL + Auth).
+- **Opção B (Simples):** MongoDB Atlas.
+- **O que guarda:** Dados dos usuários, estrutura dos funis, histórico de disparos e variáveis de leads.
 
-## 4. Boas Práticas WhatsApp (Anti-Bloqueio)
-- **Atrasos Randômicos:** O serviço de envio deve simular um "humano digitando" (delay de 200-800ms por caractere no caso de automação total).
-- **Conteúdo Dinâmico:** Use as variáveis `{{nome}}` para que cada mensagem seja tecnicamente diferente para o algoritmo da Meta.
-- **Acionamento Manual:** Esta ferramenta brilha porque o acionamento é **humano**, reduzindo drasticamente o risco de banimento em comparação com bots 100% automáticos.
+## 4. Fluxo de Dados Real
+1. Usuário clica em "Disparar" no React (Vercel).
+2. O React envia um comando via HTTPS para a Evolution API (Railway).
+3. A Evolution API utiliza a sessão ativa do WhatsApp para enviar a mensagem instantaneamente.
+4. O Webhook da Evolution API avisa o React que a mensagem foi entregue.
 
-## 5. Estrutura de Pastas Sugerida
-- `components/`: UI Atômica e componentes de negócio.
-- `services/`: Lógica de envio, processamento de variáveis e APIs.
-- `types.ts`: Definições de interfaces do domínio.
-- `constants.ts`: Dados fixos e configurações globais.
+## 5. Próximos Passos para Escala
+- Implementar **Multi-tenancy** (cada usuário tem sua própria instância de WhatsApp).
+- Adicionar **Fila de Mensagens (RabbitMQ/Redis)** para evitar bloqueios por disparos em massa muito rápidos.
+- Criar dashboard de métricas (CTR de mensagens).

@@ -7,9 +7,13 @@ import { MessagePreview } from './components/MessagePreview';
 import { Button } from './components/Button';
 import { MessageModal } from './components/MessageModal';
 import { WhatsAppConnect } from './components/WhatsAppConnect';
-import { sendToWhatsApp } from './services/whatsappService';
+import { SettingsPanel } from './components/SettingsPanel';
+import { processVariables, sendToWhatsApp, simulateLeadResponse } from './services/whatsappService';
+
+const MASCOT_URL = "https://framerusercontent.com/images/kC7Gj7f6x0fR1B8K9eK7x9x7o.png";
 
 const App: React.FC = () => {
+  const [activeTab, setActiveTab] = useState<'funnels' | 'settings'>('funnels');
   const [funnels, setFunnels] = useState<Funnel[]>([]);
   const [activeFunnelId, setActiveFunnelId] = useState<string | null>(null);
   const [activeStageId, setActiveStageId] = useState<string | null>(null);
@@ -19,15 +23,19 @@ const App: React.FC = () => {
   const [isConnected, setIsConnected] = useState(false);
   const [targetStageId, setTargetStageId] = useState<string | null>(null);
   const [predefinedType, setPredefinedType] = useState<MessageType | undefined>(undefined);
+  const [isClientTyping, setIsClientTyping] = useState(false);
   
+  const [chatMessages, setChatMessages] = useState<Array<{id: string, text: string, type: MessageType, sender: 'me' | 'client', timestamp: string, media?: string}>>([
+    { id: '1', text: 'Olá! Gostaria de saber como assinar o Premium+.', type: MessageType.TEXT, sender: 'client', timestamp: '10:30' }
+  ]);
+
   const [leadContext, setLeadContext] = useState<LeadContext>({
-    name: 'Cliente',
-    product: 'Mentoria Vip',
-    value: 'R$ 997,00',
-    agent: 'Seu Consultor'
+    name: 'João Silva',
+    product: 'Techview Premium+',
+    value: 'R$ 49,90',
+    agent: 'TechBot'
   });
 
-  // Load Data
   useEffect(() => {
     const saved = localStorage.getItem(STORAGE_KEY);
     if (saved) {
@@ -43,8 +51,6 @@ const App: React.FC = () => {
       setFunnels(INITIAL_DATA);
       setActiveFunnelId(INITIAL_DATA[0].id);
     }
-
-    // Load connection status
     const conn = localStorage.getItem('whatsapp_connected') === 'true';
     setIsConnected(conn);
   }, []);
@@ -60,7 +66,7 @@ const App: React.FC = () => {
   };
 
   const handleDisconnect = () => {
-    if (window.confirm('Deseja desconectar sua conta do WhatsApp?')) {
+    if (window.confirm('Deseja desconectar sua conta TechLeads?')) {
       setIsConnected(false);
       localStorage.setItem('whatsapp_connected', 'false');
     }
@@ -75,23 +81,41 @@ const App: React.FC = () => {
     }
 
     setIsSending(msg.id);
-    try {
-      await sendToWhatsApp(msg, leadContext);
-    } catch (err) {
-      alert('Erro ao enviar mensagem');
-    } finally {
-      setIsSending(null);
+    const result = await sendToWhatsApp(msg, leadContext);
+    
+    const newChatMsg = {
+      id: `m-${Date.now()}`,
+      text: result.processedContent,
+      type: msg.type,
+      sender: 'me' as const,
+      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      media: msg.type !== MessageType.TEXT ? msg.content : undefined
+    };
+
+    setChatMessages(prev => [...prev, newChatMsg]);
+    setIsSending(null);
+
+    const shouldReply = localStorage.getItem('backend_autoreply') !== 'false';
+    if (shouldReply) {
+      setTimeout(async () => {
+        setIsClientTyping(true);
+        const leadReply = await simulateLeadResponse(result.processedContent, leadContext);
+        setIsClientTyping(false);
+        setChatMessages(prev => [...prev, {
+          id: `c-${Date.now()}`,
+          text: leadReply,
+          type: MessageType.TEXT,
+          sender: 'client',
+          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+        }]);
+      }, 2000);
     }
   };
 
   const openQuickAdd = (type: MessageType) => {
-    if (!activeFunnel) {
-      alert('Selecione um funil primeiro para adicionar a mensagem.');
-      return;
-    }
+    if (!activeFunnel) return alert('Selecione um funil primeiro na barra lateral.');
     const stageId = activeStageId || activeFunnel.stages[0]?.id;
     if (!stageId) return;
-    
     setTargetStageId(stageId);
     setPredefinedType(type);
     setIsModalOpen(true);
@@ -99,19 +123,13 @@ const App: React.FC = () => {
 
   const handleSaveMessage = (msgData: Omit<Message, 'id' | 'order'>) => {
     if (!activeFunnelId || !targetStageId) return;
-
     const updatedFunnels = funnels.map(f => {
       if (f.id === activeFunnelId) {
         return {
           ...f,
           stages: f.stages.map(s => {
             if (s.id === targetStageId) {
-              const newMessage: Message = {
-                ...msgData,
-                id: `m-${Date.now()}`,
-                order: s.messages.length,
-                isFavorite: false
-              };
+              const newMessage: Message = { ...msgData, id: `m-${Date.now()}`, order: s.messages.length, isFavorite: false };
               return { ...s, messages: [...s.messages, newMessage] };
             }
             return s;
@@ -120,178 +138,157 @@ const App: React.FC = () => {
       }
       return f;
     });
-
     saveFunnels(updatedFunnels);
-    setPredefinedType(undefined);
   };
 
   return (
-    <div className="flex h-screen bg-slate-50 overflow-hidden">
-      {/* Sidebar - Navigation */}
-      <aside className="w-72 bg-slate-900 text-slate-300 flex flex-col shrink-0 border-r border-slate-800">
+    <div className="flex h-screen bg-[#020617] overflow-hidden font-sans text-slate-100">
+      
+      {/* 1. Sidebar - Techview Style */}
+      <aside className="w-80 bg-[#0f172a] border-r border-white/5 flex flex-col shrink-0">
         <div className="p-6">
-          <div className="flex items-center gap-2 text-white font-bold text-2xl mb-1">
-            <span className="w-9 h-9 bg-emerald-500 rounded-lg flex items-center justify-center text-slate-900 shadow-lg shadow-emerald-500/20">Z</span>
-            Z-Funnels
+          <div className="flex flex-col items-center mb-6">
+            <div className="relative group cursor-pointer">
+              <div className="absolute -inset-1 bg-[#00b4ff] rounded-full blur opacity-25 group-hover:opacity-60 transition duration-700"></div>
+              <img 
+                src={MASCOT_URL} 
+                alt="Mascote Techview" 
+                className="relative w-28 h-28 object-contain mb-2 drop-shadow-[0_0_15px_rgba(0,180,255,0.4)]"
+                onError={(e) => { e.currentTarget.src = "https://cdn-icons-png.flaticon.com/512/3652/3652267.png" }}
+              />
+            </div>
+            <h1 className="text-2xl font-black tracking-tighter text-white mt-2">TECH<span className="text-[#00b4ff]">LEADS</span></h1>
+            <span className="text-[10px] font-bold text-slate-500 uppercase tracking-[0.3em] mt-1">Powered by Techview</span>
           </div>
           
-          <div className="mt-4 flex items-center justify-between p-2 bg-slate-800/50 rounded-xl border border-slate-700/50">
+          <div className={`mt-2 flex items-center justify-between p-3 rounded-2xl border transition-all ${isConnected ? 'bg-[#00b4ff]/10 border-[#00b4ff]/30 shadow-[0_0_15px_rgba(0,180,255,0.05)]' : 'bg-red-500/10 border-red-500/20'}`}>
             <div className="flex items-center gap-2">
-              <span className={`w-2 h-2 rounded-full ${isConnected ? 'bg-emerald-500 animate-pulse' : 'bg-red-500'}`}></span>
-              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
-                {isConnected ? 'Conectado' : 'Desconectado'}
+              <span className={`w-2 h-2 rounded-full ${isConnected ? 'bg-[#00b4ff] shadow-[0_0_8px_#00b4ff]' : 'bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.5)]'}`}></span>
+              <span className={`text-[10px] font-black uppercase tracking-widest ${isConnected ? 'text-[#00b4ff]' : 'text-red-400'}`}>
+                {isConnected ? 'SISTEMA ONLINE' : 'OFFLINE'}
               </span>
             </div>
             <button 
               onClick={isConnected ? handleDisconnect : () => setIsConnectOpen(true)}
-              className="text-[9px] font-black uppercase text-indigo-400 hover:text-indigo-300 px-2 py-1 rounded-md bg-indigo-500/10"
+              className="text-[10px] font-black uppercase bg-white/5 hover:bg-white/10 text-white px-3 py-1.5 rounded-lg transition-all border border-white/10"
             >
-              {isConnected ? 'Sair' : 'Conectar'}
+              {isConnected ? 'SAIR' : 'CONECTAR'}
             </button>
           </div>
         </div>
 
-        <div className="px-4 pb-4">
-          <h3 className="px-3 text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-3">Criar Mensagem Rápida</h3>
-          <div className="grid grid-cols-2 gap-2">
-            <button onClick={() => openQuickAdd(MessageType.TEXT)} className="flex items-center gap-2 p-2 bg-slate-800 hover:bg-slate-700 rounded-lg text-xs transition-colors border border-slate-700">
-              <span className="text-blue-400">📄</span> Texto
-            </button>
-            <button onClick={() => openQuickAdd(MessageType.AUDIO)} className="flex items-center gap-2 p-2 bg-slate-800 hover:bg-slate-700 rounded-lg text-xs transition-colors border border-slate-700">
-              <span className="text-amber-400">🎧</span> Áudio
-            </button>
-            <button onClick={() => openQuickAdd(MessageType.IMAGE)} className="flex items-center gap-2 p-2 bg-slate-800 hover:bg-slate-700 rounded-lg text-xs transition-colors border border-slate-700">
-              <span className="text-emerald-400">🖼️</span> Imagem
-            </button>
-            <button onClick={() => openQuickAdd(MessageType.VIDEO)} className="flex items-center gap-2 p-2 bg-slate-800 hover:bg-slate-700 rounded-lg text-xs transition-colors border border-slate-700">
-              <span className="text-red-400">🎥</span> Vídeo
-            </button>
-          </div>
-        </div>
-
-        <nav className="flex-1 overflow-y-auto p-4 space-y-6">
-          <section>
-            <h3 className="px-3 text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-3">Meus Funis de Venda</h3>
-            <div className="space-y-1">
-              {funnels.map(f => (
-                <button
-                  key={f.id}
-                  onClick={() => {
-                    setActiveFunnelId(f.id);
-                    setActiveStageId(null);
-                  }}
-                  className={`w-full text-left px-3 py-2.5 rounded-xl text-sm transition-all flex items-center justify-between group ${
-                    activeFunnelId === f.id ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/20' : 'hover:bg-slate-800 text-slate-400'
-                  }`}
-                >
-                  <span className="truncate flex items-center gap-2">
-                    <span className={`w-1.5 h-1.5 rounded-full ${activeFunnelId === f.id ? 'bg-white' : 'bg-slate-600'}`}></span>
-                    {f.name}
-                  </span>
-                  <span className="text-[10px] opacity-40 group-hover:opacity-100">{f.stages.length} etp</span>
-                </button>
-              ))}
-            </div>
-          </section>
-
-          <section>
-            <h3 className="px-3 text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-3">Atalhos</h3>
-            <div className="space-y-1">
-              <button className="w-full text-left px-3 py-2 rounded-lg text-sm hover:bg-slate-800 text-slate-400 flex items-center gap-2">
-                <span>⭐</span> Favoritos
-              </button>
-              <button className="w-full text-left px-3 py-2 rounded-lg text-sm hover:bg-slate-800 text-slate-400 flex items-center gap-2">
-                <span>📊</span> Métricas de Envio
-              </button>
-            </div>
-          </section>
+        <nav className="px-4 flex gap-2 mb-4">
+          <button 
+            onClick={() => setActiveTab('funnels')}
+            className={`flex-1 py-2.5 text-[10px] font-black uppercase tracking-widest rounded-xl transition-all ${activeTab === 'funnels' ? 'bg-[#00b4ff] text-white shadow-lg shadow-blue-500/20' : 'text-slate-500 hover:bg-slate-800'}`}
+          >
+            MEUS FUNIS
+          </button>
+          <button 
+            onClick={() => setActiveTab('settings')}
+            className={`flex-1 py-2.5 text-[10px] font-black uppercase tracking-widest rounded-xl transition-all ${activeTab === 'settings' ? 'bg-[#00b4ff] text-white shadow-lg shadow-blue-500/20' : 'text-slate-500 hover:bg-slate-800'}`}
+          >
+            CONFIGURAÇÃO
+          </button>
         </nav>
 
-        <div className="p-4 bg-slate-900/80 backdrop-blur border-t border-slate-800">
-          <div className="flex items-center gap-3 p-2 rounded-xl bg-slate-800/50">
-            <div className="w-9 h-9 rounded-full bg-gradient-to-tr from-indigo-500 to-purple-500 flex items-center justify-center text-xs font-bold text-white">AD</div>
-            <div className="flex-1 overflow-hidden">
-              <p className="text-xs font-semibold text-white truncate">Vendedor Senior</p>
-              <p className="text-[10px] text-slate-500">Upgrade para Master</p>
-            </div>
+        {activeTab === 'funnels' ? (
+          <div className="px-4 pb-4 space-y-4 flex-1 overflow-y-auto">
+            <section className="bg-white/5 p-4 rounded-3xl border border-white/5 shadow-inner">
+              <h3 className="px-1 text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] mb-4 flex items-center gap-2">
+                <span className="w-1 h-3 bg-[#00b4ff] rounded-full"></span>
+                Criar Mensagem
+              </h3>
+              <div className="grid grid-cols-2 gap-2">
+                {[
+                  { type: MessageType.TEXT, label: 'Texto', icon: '📄' },
+                  { type: MessageType.AUDIO, label: 'Áudio', icon: '🎧' },
+                  { type: MessageType.IMAGE, label: 'Foto', icon: '🖼️' },
+                  { type: MessageType.VIDEO, label: 'Vídeo', icon: '🎥' }
+                ].map(item => (
+                  <button 
+                    key={item.type}
+                    onClick={() => openQuickAdd(item.type)} 
+                    className="flex flex-col items-center justify-center gap-1.5 p-3 bg-slate-800/50 hover:bg-[#00b4ff]/20 hover:border-[#00b4ff]/30 rounded-xl text-[10px] font-bold text-slate-300 transition-all border border-white/5"
+                  >
+                    <span className="text-lg">{item.icon}</span>
+                    {item.label}
+                  </button>
+                ))}
+              </div>
+            </section>
+
+            <section>
+              <h3 className="px-3 text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] mb-3">Estratégias</h3>
+              <div className="space-y-1">
+                {funnels.map(f => (
+                  <button
+                    key={f.id}
+                    onClick={() => { setActiveFunnelId(f.id); setActiveStageId(null); }}
+                    className={`w-full text-left px-4 py-3 rounded-2xl text-xs font-bold transition-all flex items-center justify-between group ${
+                      activeFunnelId === f.id ? 'bg-slate-800 text-white border border-[#00b4ff]/30 shadow-[inset_0_0_15px_rgba(0,180,255,0.1)]' : 'hover:bg-slate-800/50 text-slate-500'
+                    }`}
+                  >
+                    <span className="truncate uppercase tracking-tight">{f.name}</span>
+                    {activeFunnelId === f.id && <span className="w-1.5 h-1.5 rounded-full bg-[#00b4ff] shadow-[0_0_8px_#00b4ff]"></span>}
+                  </button>
+                ))}
+              </div>
+            </section>
           </div>
+        ) : (
+          <div className="flex-1 overflow-y-auto px-4">
+             <div className="bg-slate-800/30 rounded-3xl border border-white/5">
+                <SettingsPanel />
+             </div>
+          </div>
+        )}
+
+        <div className="p-4 mt-auto border-t border-white/5 text-center flex items-center justify-center gap-2">
+          <img src={MASCOT_URL} className="w-4 h-4 grayscale opacity-30" alt="footer-mascot" />
+          <p className="text-[9px] font-bold text-slate-600 uppercase tracking-[0.2em]">© 2024 Techview Premium+</p>
         </div>
       </aside>
 
-      {/* Main Content Area */}
-      <main className="flex-1 flex flex-col min-w-0 bg-white relative">
-        {activeFunnel ? (
+      {/* 2. Middle Panel */}
+      <main className="flex-1 flex flex-col bg-[#020617] overflow-hidden">
+        {activeFunnel && activeTab === 'funnels' ? (
           <>
-            <LeadControl context={leadContext} setContext={setLeadContext} />
-
-            {/* Stage Selector */}
-            <div className="flex border-b border-slate-100 bg-white p-3 gap-2 overflow-x-auto scrollbar-hide">
-              <button 
-                onClick={() => setActiveStageId(null)}
-                className={`px-5 py-2 rounded-xl text-xs font-bold shrink-0 transition-all border ${
-                  activeStageId === null 
-                  ? 'bg-slate-900 text-white border-slate-900 shadow-md' 
-                  : 'text-slate-500 border-slate-100 hover:border-slate-300'
-                }`}
-              >
-                Todas as Mensagens
-              </button>
+            <div className="p-1">
+               <div className="bg-[#0f172a] mx-4 mt-4 rounded-[2.5rem] border border-white/5 shadow-2xl">
+                  <LeadControl context={leadContext} setContext={setLeadContext} />
+               </div>
+            </div>
+            
+            <div className="flex p-4 gap-2 overflow-x-auto scrollbar-hide px-6 mt-2">
+              <button onClick={() => setActiveStageId(null)} className={`px-6 py-2.5 rounded-2xl text-[10px] font-black uppercase tracking-widest shrink-0 transition-all ${activeStageId === null ? 'bg-[#00b4ff] text-white shadow-xl shadow-blue-500/30 border border-cyan-400/20' : 'text-slate-500 hover:bg-white/5'}`}>Fluxo Completo</button>
               {activeFunnel.stages.map(s => (
-                <button 
-                  key={s.id}
-                  onClick={() => setActiveStageId(s.id)}
-                  className={`px-5 py-2 rounded-xl text-xs font-bold shrink-0 transition-all border ${
-                    activeStageId === s.id 
-                    ? 'bg-indigo-600 text-white border-indigo-600 shadow-md' 
-                    : 'text-slate-500 border-slate-100 hover:border-slate-300'
-                  }`}
-                >
-                  {s.name}
-                </button>
+                <button key={s.id} onClick={() => setActiveStageId(s.id)} className={`px-6 py-2.5 rounded-2xl text-[10px] font-black uppercase tracking-widest shrink-0 transition-all ${activeStageId === s.id ? 'bg-[#00b4ff] text-white shadow-xl shadow-blue-500/30 border border-cyan-400/20' : 'text-slate-500 hover:bg-white/5'}`}>{s.name}</button>
               ))}
             </div>
 
-            {/* Messages Content */}
-            <div className="flex-1 overflow-y-auto p-8 bg-slate-50/50">
-              <div className="max-w-6xl mx-auto space-y-12">
-                {(activeStageId 
-                  ? activeFunnel.stages.filter(s => s.id === activeStageId)
-                  : activeFunnel.stages).map(stage => (
+            <div className="flex-1 overflow-y-auto p-6">
+              <div className="space-y-12">
+                {(activeStageId ? activeFunnel.stages.filter(s => s.id === activeStageId) : activeFunnel.stages).map(stage => (
                   <section key={stage.id} className="animate-fade-in">
-                    <div className="flex items-center gap-4 mb-6">
-                      <h2 className="text-sm font-black text-slate-300 uppercase tracking-[0.2em]">
-                        {stage.name}
-                      </h2>
-                      <div className="h-px flex-1 bg-slate-100"></div>
-                      <button 
-                        onClick={() => { setTargetStageId(stage.id); setIsModalOpen(true); }}
-                        className="text-[10px] font-bold text-indigo-500 hover:text-indigo-700 uppercase p-2"
-                      >
-                        + Adicionar
-                      </button>
+                    <div className="flex items-center gap-4 mb-8">
+                      <h2 className="text-[10px] font-black text-[#00b4ff] uppercase tracking-[0.4em] whitespace-nowrap">{stage.name}</h2>
+                      <div className="h-px w-full bg-gradient-to-r from-[#00b4ff]/20 via-[#00b4ff]/5 to-transparent"></div>
                     </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                    <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
                       {stage.messages.map(msg => (
-                        <div key={msg.id} className="flex flex-col h-full bg-white rounded-2xl shadow-sm border border-slate-100 p-1 hover:shadow-xl transition-all hover:-translate-y-1 group">
+                        <div key={msg.id} className="bg-[#0f172a] rounded-[2rem] border border-white/5 p-6 shadow-lg hover:border-[#00b4ff]/40 transition-all hover:-translate-y-1 flex flex-col justify-between group">
                           <MessagePreview message={msg} context={leadContext} />
-                          <div className="p-2 pt-0">
+                          <div className="mt-6">
                             <Button 
-                              variant="whatsapp" 
-                              className="w-full !rounded-xl" 
+                              variant="neon" 
+                              className="w-full !rounded-2xl font-black py-4 uppercase tracking-[0.2em] text-[10px]"
                               size="sm"
                               disabled={isSending !== null}
                               onClick={() => handleSendMessage(msg)}
                             >
-                              {isSending === msg.id ? (
-                                <span className="flex items-center gap-2">
-                                  <svg className="animate-spin h-3 w-3 text-white" viewBox="0 0 24 24">
-                                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                                  </svg>
-                                  Enviando
-                                </span>
-                              ) : isConnected ? 'Disparar Agora' : 'Conectar p/ Enviar'}
+                              {isSending === msg.id ? 'ENVIANDO...' : 'ENVIAR PARA O LEAD'}
                             </Button>
                           </div>
                         </div>
@@ -302,29 +299,84 @@ const App: React.FC = () => {
               </div>
             </div>
           </>
+        ) : activeTab === 'funnels' ? (
+           <div className="flex-1 flex flex-col items-center justify-center p-12 text-center animate-fade-in">
+             <div className="relative mb-10">
+                <div className="absolute -inset-10 bg-[#00b4ff] rounded-full blur-[60px] opacity-10"></div>
+                <img src={MASCOT_URL} className="w-48 h-48 object-contain relative drop-shadow-2xl grayscale opacity-40 hover:grayscale-0 hover:opacity-100 transition-all duration-700" alt="empty-mascot" />
+             </div>
+             <h2 className="text-3xl font-black text-slate-800 tracking-tighter uppercase mb-4">Aguardando Missão</h2>
+             <p className="text-slate-500 max-w-sm text-sm font-medium leading-relaxed">O astronauta da Techview está pronto. Selecione um funil na lateral para iniciar os disparos.</p>
+           </div>
         ) : (
-          <div className="flex-1 flex flex-col items-center justify-center p-12 text-center">
-            <div className="w-24 h-24 bg-slate-50 rounded-full flex items-center justify-center text-4xl mb-6 grayscale opacity-50">📁</div>
-            <h2 className="text-xl font-bold text-slate-700">Selecione um Funil de Vendas</h2>
-            <p className="mt-2 max-w-sm text-slate-400 text-sm">Gerencie suas mensagens prontas e acelere o atendimento escolhendo uma estratégia na lateral.</p>
+          <div className="flex-1 flex flex-col items-center justify-center p-12 text-center animate-fade-in">
+             <div className="w-32 h-32 bg-[#00b4ff]/5 rounded-[3rem] mb-10 flex items-center justify-center border border-[#00b4ff]/20 group hover:rotate-6 transition-all">
+                <img src={MASCOT_URL} className="w-20 h-20 object-contain drop-shadow-xl" alt="config-mascot" />
+             </div>
+             <h2 className="text-3xl font-black text-white tracking-tighter uppercase mb-4">Painel de Controle</h2>
+             <p className="text-slate-400 max-w-sm text-sm font-medium leading-relaxed">Ajuste as frequências de transmissão e as credenciais do motor TechLeads aqui.</p>
           </div>
         )}
       </main>
 
-      {/* Modal for creating messages */}
-      <MessageModal 
-        isOpen={isModalOpen} 
-        onClose={() => { setIsModalOpen(false); setPredefinedType(undefined); }} 
-        onSave={handleSaveMessage}
-        initialType={predefinedType}
-      />
+      {/* 3. Live Simulator - WhatsApp Dark Mode */}
+      <aside className="w-[440px] bg-[#0b141a] border-l border-white/5 flex flex-col shrink-0 relative">
+        <div className="p-4 bg-[#202c33] flex items-center gap-3 border-b border-white/5">
+          <div className="w-10 h-10 rounded-full bg-[#00b4ff]/20 border border-[#00b4ff]/30 flex items-center justify-center text-[#00b4ff] text-xl uppercase font-black">
+            {leadContext.name.charAt(0)}
+          </div>
+          <div className="flex-1">
+            <h4 className="text-[#e9edef] text-sm font-bold tracking-tight">{leadContext.name}</h4>
+            <div className="flex items-center gap-1.5">
+               <span className={`w-2 h-2 rounded-full ${isClientTyping ? 'bg-[#00b4ff] animate-pulse shadow-[0_0_8px_#00b4ff]' : 'bg-emerald-500'}`}></span>
+               <p className="text-[#aebac1] text-[10px] uppercase font-bold tracking-widest">{isClientTyping ? 'digitando...' : 'online'}</p>
+            </div>
+          </div>
+        </div>
 
-      {/* Modal for WhatsApp Connection */}
-      <WhatsAppConnect 
-        isOpen={isConnectOpen}
-        onClose={() => setIsConnectOpen(false)}
-        onConnected={handleConnected}
-      />
+        <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-[url('https://user-images.githubusercontent.com/15075759/28719144-86dc0f70-73b1-11e7-911d-60d70fcded21.png')] bg-repeat bg-blend-multiply bg-slate-900 opacity-90">
+          {chatMessages.map(m => (
+            <div key={m.id} className={`flex ${m.sender === 'me' ? 'justify-end' : 'justify-start'}`}>
+              <div className={`max-w-[85%] p-3 rounded-2xl shadow-xl relative animate-in fade-in slide-in-from-bottom-2 ${
+                m.sender === 'me' ? 'bg-[#005c4b] text-[#e9edef] rounded-tr-none' : 'bg-[#202c33] text-[#e9edef] rounded-tl-none border border-white/5'
+              }`}>
+                {m.media && (
+                   <div className="mb-2 rounded-xl overflow-hidden border border-black/20">
+                     {m.type === MessageType.IMAGE && <img src={m.media} className="w-full max-h-64 object-cover" />}
+                     {m.type === MessageType.AUDIO && <div className="p-4 bg-black/40 rounded-xl flex items-center gap-4">
+                        <div className="w-8 h-8 bg-[#00b4ff] rounded-full flex items-center justify-center text-white cursor-pointer hover:scale-105 transition-transform shadow-[0_0_10px_rgba(0,180,255,0.3)]">▶</div>
+                        <div className="flex-1 h-1 bg-white/20 rounded-full overflow-hidden"><div className="w-1/3 h-full bg-[#00b4ff]"></div></div>
+                     </div>}
+                   </div>
+                )}
+                <p className="text-sm leading-relaxed whitespace-pre-wrap">{m.text}</p>
+                <div className="text-[10px] text-right mt-1.5 opacity-40 flex items-center justify-end gap-1 font-bold">
+                  {m.timestamp}
+                  {m.sender === 'me' && <span className="text-[#53bdeb] text-xs">✓✓</span>}
+                </div>
+              </div>
+            </div>
+          ))}
+          {isClientTyping && (
+             <div className="flex justify-start">
+               <div className="bg-[#202c33] p-4 rounded-2xl rounded-tl-none flex gap-1.5 items-center">
+                 <div className="w-1.5 h-1.5 bg-[#00b4ff] rounded-full animate-bounce"></div>
+                 <div className="w-1.5 h-1.5 bg-[#00b4ff] rounded-full animate-bounce delay-75"></div>
+                 <div className="w-1.5 h-1.5 bg-[#00b4ff] rounded-full animate-bounce delay-150"></div>
+               </div>
+             </div>
+          )}
+        </div>
+
+        <div className="p-4 bg-[#202c33] flex items-center gap-3">
+          <div className="flex-1 bg-[#2a3942] rounded-[1.5rem] px-5 py-3 text-sm text-slate-500 font-medium">
+            TechLeads pronto para transmitir...
+          </div>
+        </div>
+      </aside>
+
+      <MessageModal isOpen={isModalOpen} onClose={() => { setIsModalOpen(false); setPredefinedType(undefined); }} onSave={handleSaveMessage} initialType={predefinedType} />
+      <WhatsAppConnect isOpen={isConnectOpen} onClose={() => setIsConnectOpen(false)} onConnected={handleConnected} />
     </div>
   );
 };
